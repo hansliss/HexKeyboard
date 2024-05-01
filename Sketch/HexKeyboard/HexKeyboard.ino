@@ -23,7 +23,7 @@
 
 #define DEBUG
 #define DOWRITE
-#undef TRISTATESTROBE
+#define TRISTATESTROBE
 
 // Select the timers you're using, here ITimer4
 #define USE_TIMER_1     false
@@ -45,13 +45,14 @@ unsigned int colpins[] = {22, 21, 20, 19, 18};
 
 #define HEXDIGIT (1<<8)
 #define METAKEY (1<<9)
+#define SETUP (1<<10)
 
 const unsigned int keycode[NROWS][NCOLS] = {
-  {HEXDIGIT | 'C', HEXDIGIT | 'd', HEXDIGIT | 'E', HEXDIGIT | 'F', -1},
-  {HEXDIGIT | '8', HEXDIGIT | '9', HEXDIGIT | 'A', HEXDIGIT | 'b', -1},
-  {HEXDIGIT | '4', HEXDIGIT | '5', HEXDIGIT | '6', HEXDIGIT | '7', -1},
-  {HEXDIGIT | '0', HEXDIGIT | '1', HEXDIGIT | '2', HEXDIGIT | '3', -1},
-  {METAKEY | KEY_MOD_LALT, -1, -1, -1, KEY_ENTER}
+  {HEXDIGIT | 'A', HEXDIGIT | 'b', HEXDIGIT | 'C', HEXDIGIT | 'd', SETUP | KEY_UP},
+  {HEXDIGIT | '7', HEXDIGIT | '8', HEXDIGIT | '9', HEXDIGIT | 'E', SETUP | KEY_DOWN},
+  {HEXDIGIT | '4', HEXDIGIT | '5', HEXDIGIT | '6', HEXDIGIT | 'F', -1},
+  {HEXDIGIT | '1', HEXDIGIT | '2', HEXDIGIT | '3', SETUP | KEY_PROPS, SETUP | KEY_ENTER},
+  {-1, HEXDIGIT | '0', -1, SETUP | KEY_LEFT, -1}
 };
 
 #define BUFLEN 150
@@ -148,6 +149,7 @@ void setup() {
   pinMode(CDPIN, INPUT_PULLUP);
 
   initKeyboard();
+  initHexpad();
   initHID();
 
   max7219.Begin();
@@ -247,7 +249,9 @@ void loop() {
     diff = nowMillis + (UINT32_MAX - stimeMillis);
   }
 
-  checkForKeyboardChanges();
+  //checkForKeyboardChanges();
+
+  checkHexDigitQueue();
 
   if (diff > random(3000) + 2000) {
 //    if (random(100) > 60) {
@@ -255,20 +259,108 @@ void loop() {
 //    }
     stimeMillis = nowMillis;
   }
-  delay(5);
+  delay(1);
 }
 
+#pragma region "Hexpad code"
+unsigned char hexDigitQueue[32];
+int hexDigitQueueStart=0;
+int hexDigitQueueNext=0;
+
+void addToHexDigitQueue(unsigned char digit) {
+  hexDigitQueue[hexDigitQueueNext] = digit;
+  hexDigitQueueNext = (hexDigitQueueNext + 1) % sizeof(hexDigitQueue);
+  if (hexDigitQueueNext == hexDigitQueueStart) {
+    hexDigitQueueStart = (hexDigitQueueStart + 1) % sizeof(hexDigitQueue);
+  }
+}
+
+unsigned char fetchFromHexDigitQueue() {
+  int retval = -1;
+  noInterrupts();
+  if (hexDigitQueueStart != hexDigitQueueNext) {
+    retval = hexDigitQueue[hexDigitQueueStart];
+    hexDigitQueueStart = (hexDigitQueueStart + 1) % sizeof(hexDigitQueue);
+  }
+  interrupts();
+  return retval;
+}
+
+boolean hasMoreHexDigits() {
+  return  (hexDigitQueueStart != hexDigitQueueNext);
+}
+
+int hexpad_mode = 0;
+int hexpad_worddigits = 2;
+int hexpad_linelength = 16;
+char *hexpad_prefix = "0x";
+char *hexpad_delimiter = ", ";
+char *hexpad_eol = ",\n";
+
+unsigned char hexDigits[9];
+
+void initHexpad() {
+  memset(hexDigits, ' ', sizeof(hexDigits));
+  hexDigits[sizeof(hexDigits) - 1] = '\0';
+}
+
+void checkHexDigitQueue() {
+  while (hasMoreHexDigits()) {
+    unsigned char newHexDigit = fetchFromHexDigitQueue();
+    memmove(hexDigits, hexDigits + 1, sizeof(hexDigits) - 1);
+    hexDigits[7] = newHexDigit;
+    hexDigits[8] = '\0';
+    max7219.DisplayText(hexDigits, 1);
+#ifdef DEBUG
+    // Serial.println(String("Hex digit: ") + (char)(keycode[row][col] & 0xFF));
+#endif
+    hexpad_addDigit(newHexDigit);
+  }
+}
+
+void hexpad_addDigit(unsigned char digit) {
+  static int currentDigits = 0;
+  static int currentWords = 0;
+  static char wordBuf[9];
+  wordBuf[currentDigits] = toupper(digit);
+  currentDigits++;
+  wordBuf[currentDigits] = '\0';
+  if (currentDigits >= hexpad_worddigits) {
+    if (currentWords > 0) {
+#ifdef DEBUG
+      Serial.print(hexpad_delimiter);
+#endif
+      // output hexpad_delimiter
+    }
+#ifdef DEBUG
+    Serial.print(hexpad_prefix);
+    Serial.print(wordBuf);
+#endif
+    // output prefix
+    // output word
+    currentDigits = 0;
+    currentWords++;
+    if (currentWords >= hexpad_linelength) {
+#ifdef DEBUG
+      Serial.print(hexpad_eol);
+#endif
+      // output hexpad_eol
+      currentWords = 0;
+    }
+  }
+}
+
+#pragma endregion "Hexpad code"
+
 #pragma region "Keyboard scanning code"
-#define STABILIZE_STROBE_DELAY 10
+#define STABILIZE_STROBE_DELAY 5
 #define SCANNER_INTERVAL_MS 1
 
 // Keep track of key state changes, in the easiest way possible
 uint8_t keydown[NROWS][NCOLS];
 uint8_t oldkeydown[NROWS][NCOLS];
 
-unsigned char hexDigits[9];
-
-unsigned long debounceDelay = 20;    // the debounce time; increase if the output flickers
+unsigned long debounceDelay = 10;    // the debounce time; increase if the output flickers
 
 void initKeyboard() {
   for (int i=0; i<NCOLS; i++) {
@@ -285,13 +377,46 @@ void initKeyboard() {
 
   memset(keydown, 0, sizeof(keydown));
   memset(oldkeydown, 0, sizeof(oldkeydown));
-  memset(hexDigits, ' ', sizeof(hexDigits));
-  hexDigits[sizeof(hexDigits) - 1] = '\0';
 
   // Init timer ITimer4
   ITimer4.init();
   // Interval in unsigned long millisecs
   ITimer4.attachInterruptInterval(SCANNER_INTERVAL_MS, scanKeyboard);
+}
+
+void handleSetupKey(int keycode) {
+  switch(keycode) {
+    case KEY_PROPS:
+#ifdef DEBUG
+      Serial.println(String("Enter setup"));
+#endif
+    break;
+  case KEY_UP:
+#ifdef DEBUG
+      Serial.println(String("Menu Up"));
+#endif
+    break;
+  case KEY_DOWN:
+#ifdef DEBUG
+    Serial.println(String("Menu Down"));
+#endif
+    break;
+  case KEY_LEFT:
+#ifdef DEBUG
+    Serial.println(String("Menu exit"));
+#endif
+    break;
+  case KEY_ENTER:
+#ifdef DEBUG
+    Serial.println(String("Menu confirm"));
+#endif
+    break;
+  default:
+#ifdef DEBUG
+    Serial.println(String("Unknown setup key pressed: ") + keycode);
+#endif
+    break;
+  }
 }
 
 void scanKeyboard() {
@@ -333,6 +458,7 @@ void scanKeyboard() {
     digitalWrite(rowpins[row], HIGH);
 #endif
   }
+  checkForKeyboardChanges();
   interrupts();
 }
 
@@ -347,16 +473,13 @@ void checkForKeyboardChanges() {
         // Key Down event
         if (keycode[row][col] != -1) {
           if (keycode[row][col] & HEXDIGIT) {
-            memmove(hexDigits, hexDigits + 1, sizeof(hexDigits) - 1);
-            hexDigits[7] = keycode[row][col] & 0xFF;
-            hexDigits[8] = '\0';
-            max7219.DisplayText(hexDigits, 1);
-#ifdef DEBUG
-            Serial.println(String("Hex digit: ") + (char)(keycode[row][col] & 0xFF));
-#endif
+            addToHexDigitQueue(keycode[row][col] & 0xFF);
           } else if (keycode[row][col] & METAKEY) {
             addMeta(keycode[row][col] & 0xFF);
             isChanged = true;
+          } else if (keycode[row][col] & SETUP) {
+            // TODO: Add a keystroke queue for setup keys
+            // handleSetupKey(keycode[row][col] & 0xFF);
           } else {
             addKeyToBuffer(keycode[row][col]);
             isChanged = true;
@@ -372,6 +495,7 @@ void checkForKeyboardChanges() {
     }
   }
   if (isChanged) {
+    // TODO: Move the HID code outside the interrupt handler
     sendKeys();
   }
 }
