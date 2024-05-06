@@ -34,8 +34,11 @@
 #include <TimerInterrupt.h>
 #include <ISR_Timer.h>
 
-#define CSPIN PB4
-#define CDPIN PB0
+#define CSPIN 8
+#define CDPIN 17
+//PB0
+
+boolean cardInserted = false;
 
 unsigned int rowpins[] = {0, 1, 4, 30, 29};
 unsigned int colpins[] = {22, 21, 20, 19, 18};
@@ -144,8 +147,9 @@ void readTxt(char *filename, char *buf, int buflen, char *xlate) {
 
 void setup() {
   TXLED0;
-  //RXLED0;
+  RXLED0;
   pinMode(CSPIN, OUTPUT);
+  digitalWrite(CSPIN, HIGH);
   pinMode(CDPIN, INPUT_PULLUP);
 
   initKeyboard();
@@ -162,6 +166,9 @@ void setup() {
   }
 #endif
   File infile;
+}
+
+void readFromSD() {
   if (SD.begin(CSPIN)) {
     if (readSDFile("xlate.txt", xlate_string, sizeof(xlate_string))) {
       xlate_string[strlen(xlate_string) & 0xFE] = '\0';
@@ -248,6 +255,19 @@ void loop() {
   if (nowMillis < stimeMillis) {
     diff = nowMillis + (UINT32_MAX - stimeMillis);
   }
+
+  boolean newCardInserted = (digitalRead(CDPIN) == LOW);
+  if (newCardInserted && !cardInserted) {
+#ifdef DEBUG
+    Serial.println("Card inserted");
+    readFromSD();
+#endif
+  } else if (!newCardInserted && cardInserted) {
+#ifdef DEBUG
+    Serial.println("Card removed");
+#endif
+  }
+  cardInserted = newCardInserted;
 
   //checkForKeyboardChanges();
 
