@@ -40,7 +40,8 @@
 
 boolean cardInserted = false;
 
-unsigned int rowpins[] = {0, 1, 4, 30, 29};
+unsigned int rowpins[] = {0, 1, 4, 30, 29}; // Prototype
+// unsigned int rowpins[] = {4, 12, 6, 7, 19}; // New version
 unsigned int colpins[] = {22, 21, 20, 19, 18};
 
 #define NROWS (sizeof(rowpins) / sizeof(unsigned int))
