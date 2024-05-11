@@ -2,7 +2,7 @@
 
 ![HexKeyboard_1](Photos/HexKeyboard_1.jpg)
 
-The matrix rows are on pin 0, 1, 4, 30, 29
+The matrix rows are on pin 4, 12, 6, 7, 19 (previous version: 0, 1, 4, 30, 29)
 The matrix columns are on pin 22, 21, 20, 19, 18
 
 The SD card holder is connected to SPI, plus
