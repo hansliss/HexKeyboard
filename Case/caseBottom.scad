@@ -5,22 +5,22 @@ include <dimensions.scad>
 module screwStandoffLow() {
     translate([0, 0, caseWallThickness / 2])
         rotate([caseTopRimAngle, 0, 0])
-            cylinder(r=4, h=4);
+            cylinder(r=caseBottomStandoffOuterRadius, h=caseBottomShortStandoffHeight);
 }
 
 module screwStandoffHigh() {
     translate([0, 0, caseWallThickness / 2])
         rotate([caseTopRimAngle, 0, 0])
-            cylinder(r=4, h=22.8);
+            cylinder(r=caseBottomStandoffOuterRadius, h=caseBottomTallStandoffHeight);
 }
 
 module screwHoleLow() {
     translate([0, 0, -caseWallThickness / 2])
         rotate([caseTopRimAngle, 0, 0])
             union() {
-                cylinder(r=1.5, h=4 + caseWallThickness + 0.2);
+                cylinder(r=caseBottomStandoffHoleRadius, h=4 + caseWallThickness + 0.2);
                 translate([0, 0, -(caseWallThickness / 2 + 0.2)])
-                    cylinder(r=3, h=4);
+                    cylinder(r=caseBottomStandoffInnerRadius, h=caseBottomShortStandoffHeight);
             }
 }
 
@@ -28,9 +28,9 @@ module screwHoleHigh() {
     translate([0, 0, -caseWallThickness / 2])
         rotate([caseTopRimAngle, 0, 0])
             union() {
-                cylinder(r=1.5, h=22.8 + caseWallThickness + 0.2);
+                cylinder(r=caseBottomStandoffHoleRadius, h=caseBottomTallStandoffHeight + caseWallThickness + 0.2);
                 translate([0, 0, -(caseWallThickness / 2 + 0.2)])
-                    cylinder(r=3, h=22.8);
+                    cylinder(r=caseBottomStandoffInnerRadius, h=caseBottomTallStandoffHeight);
             }
 }
 
@@ -52,11 +52,11 @@ difference() {
                 screwStandoffHigh();
                 translate([0, 0, caseWallThickness * 1.5 - 0.01])
                 difference() {
-                    cylinder(r = 4 + caseTopStandoffSkirtRadius, h = caseTopStandoffSkirtRadius);
-                    translate([0, 0, caseTopStandoffSkirtRadius])
+                    cylinder(r = caseBottomStandoffOuterRadius + caseBottomStandoffSkirtRadius, h = caseBottomStandoffSkirtRadius);
+                    translate([0, 0, caseBottomStandoffSkirtRadius])
                         rotate_extrude(convexity = 10)
-                            translate([4 + caseTopStandoffSkirtRadius, 0, 0])
-                                circle(r = caseTopStandoffSkirtRadius);
+                            translate([caseBottomStandoffOuterRadius + caseBottomStandoffSkirtRadius, 0, 0])
+                                circle(r = caseBottomStandoffSkirtRadius);
                 }
             }
         translate([(pcbAbsTRHoleX - pcbCX), - (pcbAbsTRHoleY - pcbCY) / cos(caseTopRimAngle), 0])
@@ -64,11 +64,11 @@ difference() {
                 screwStandoffHigh();
                 translate([0, 0, caseWallThickness * 1.5 - 0.01])
                 difference() {
-                    cylinder(r = 4 + caseTopStandoffSkirtRadius, h = caseTopStandoffSkirtRadius);
-                    translate([0, 0, caseTopStandoffSkirtRadius])
+                    cylinder(r = caseBottomStandoffOuterRadius + caseBottomStandoffSkirtRadius, h = caseBottomStandoffSkirtRadius);
+                    translate([0, 0, caseBottomStandoffSkirtRadius])
                         rotate_extrude(convexity = 10)
-                            translate([4 + caseTopStandoffSkirtRadius, 0, 0])
-                                circle(r = caseTopStandoffSkirtRadius);
+                            translate([caseBottomStandoffOuterRadius + caseBottomStandoffSkirtRadius, 0, 0])
+                                circle(r = caseBottomStandoffSkirtRadius);
                 }
             }
         translate([(pcbAbsBRHoleX - pcbCX), - (pcbAbsBRHoleY - pcbCY) / cos(caseTopRimAngle), 0])

@@ -83,8 +83,8 @@ caseWidth = pcbWidth + 2 * caseMargin + 2 * caseWallThickness;
 caseDepth = pcbDepth + 2 * caseMargin + 2 * caseWallThickness;
 
 caseTopStandoffHeight = caseSwitchPlateOpeningRimHeight + facePlateTop;
-caseTopStandoffHoleDia = 2.5;
-caseTopStandoffOuterDia = 6;
+caseTopStandoffHoleRadius = 1.25;
+caseTopStandoffOuterRadius = 3;
 caseTopStandoffSkirtRadius = 2;
 
 caseZifHoleWidth = 15.5;
@@ -101,3 +101,9 @@ caseUsbHoleHeight = 4.5;
 caseSdHoleWidth = 15.5;
 caseSdHoleHeight = 2.5;
 
+caseBottomTallStandoffHeight = 22.8;
+caseBottomShortStandoffHeight = 4;
+caseBottomStandoffOuterRadius = 4;
+caseBottomStandoffInnerRadius = 3;
+caseBottomStandoffHoleRadius = 1.6;
+caseBottomStandoffSkirtRadius = caseTopStandoffSkirtRadius;

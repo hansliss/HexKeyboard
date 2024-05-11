@@ -6,16 +6,16 @@ module screwStandoff() {
     translate([0, 0, - (caseTopStandoffHeight + caseWallThickness / 2 - 0.01)])
         union() {
             difference() {
-                cylinder(r = caseTopStandoffOuterDia / 2, h = caseTopStandoffHeight + 0.01);
+                cylinder(r = caseTopStandoffOuterRadius, h = caseTopStandoffHeight + 0.01);
                 translate([0, 0, -0.01])
-                    cylinder(r = caseTopStandoffHoleDia / 2, h = caseTopStandoffHeight + 0.02);
+                    cylinder(r = caseTopStandoffHoleRadius, h = caseTopStandoffHeight + 0.02);
             }
             translate([0, 0, caseTopStandoffHeight - caseTopStandoffSkirtRadius])
                 difference() {
-                    cylinder(r = (caseTopStandoffOuterDia)/2 + caseTopStandoffSkirtRadius, h = caseTopStandoffSkirtRadius);
+                    cylinder(r = caseTopStandoffOuterRadius + caseTopStandoffSkirtRadius, h = caseTopStandoffSkirtRadius);
                     
                     rotate_extrude(convexity = 10)
-                        translate([caseTopStandoffOuterDia / 2 + caseTopStandoffSkirtRadius, 0, 0])
+                        translate([caseTopStandoffOuterRadius + caseTopStandoffSkirtRadius, 0, 0])
                             circle(r = caseTopStandoffSkirtRadius);
                 }
         }
