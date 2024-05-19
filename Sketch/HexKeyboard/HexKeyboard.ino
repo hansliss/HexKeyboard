@@ -37,7 +37,10 @@
 
 #define CSPIN 8
 #define CDPIN 17
-//PB0
+
+// Talk to the ESP-01's AT firmware on this port
+#define ESPSERIAL Serial1
+#define ESPBAUD 115200
 
 boolean cardInserted = false;
 

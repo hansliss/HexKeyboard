@@ -1,4 +1,4 @@
-$fn=255;
+$fn=128;
 
 include <dimensions.scad>
 
@@ -44,6 +44,15 @@ difference() {
                 rotate([caseTopRimAngle, 0, 0])
                     cube([caseWidth - (2 * caseWallThickness + 0.2), (caseDepth - (2 * caseWallThickness + 0.2)), 50], center = true);
         }
+        // Keypad backing
+        intersection() {
+            translate([pcbAbsKeypadCenterX - pcbCX, - (pcbAbsKeypadCenterY - pcbCY), caseWallThickness * 1.5 + (caseBottomTallStandoffHeight - 1.5) / 2 - 0.01])
+                cube([caseSwitchPlateOpeningWidth, caseSwitchPlateOpeningDepth, caseBottomTallStandoffHeight - 1.5], center = true);
+            translate([0, 0, 0])
+                rotate([caseTopRimAngle, 0, 0])
+                    cube([caseWidth, caseDepth, caseBottomTallStandoffHeight], center = true);
+        }
+        
         // 4 x top screw standoff
         translate([(pcbAbsBLHoleX - pcbCX), - (pcbAbsBLHoleY - pcbCY) / cos(caseTopRimAngle), 0])
             screwStandoffLow();
