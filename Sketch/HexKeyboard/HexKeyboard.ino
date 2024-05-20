@@ -19,6 +19,11 @@
 #define DEBUG
 #endif
 
+struct confValues_s {
+  char *name;
+  char **valuep;
+};
+
 // Select the timers you're using, here ITimer4
 #define USE_TIMER_1     false
 #define USE_TIMER_2     false
@@ -62,27 +67,6 @@ MAX7219 max7219;
 
 char tmpbuf[BUFLEN];
 
-void trimEOL(char *str) {
-  while (strlen(str) > 0 && (str[strlen(str) - 1] == '\n' || str[strlen(str) - 1] == '\r')) {
-    str[strlen(str) - 1] = '\0';
-  }
-}
-
-boolean readLine(File infile, char *buf, int bufsize) {
-  int n = 0;
-  int sz = infile.available();
-  while (sz && n < bufsize - 1) {
-    buf[n] = infile.read();
-    sz--;
-    if (buf[n] == '\n') {
-      break;
-    }
-    n++;
-  }
-  buf[n] = '\0';
-  trimEOL(buf);
-  return true;
-}
 
 void setup() {
   TXLED0;
@@ -110,9 +94,7 @@ void setup() {
 void readFromSD() {
   if (SD.begin(CSPIN)) {
 #ifdef DOWIFI
-    if (readWiFiConfig("wifi.txt")) {
-      connectWiFi();
-    }
+    checkWifi();
 #endif
 #ifdef DEBUG
   } else {
@@ -439,6 +421,73 @@ void resetKeys() {
 
 #pragma endregion "HID code"
 
+#pragma region "Config file code"
+
+void trimEOL(char *str) {
+  while (strlen(str) > 0 && (str[strlen(str) - 1] == '\n' || str[strlen(str) - 1] == '\r')) {
+    str[strlen(str) - 1] = '\0';
+  }
+}
+
+boolean readLine(File infile, char *buf, int bufsize) {
+  int n = 0;
+  int sz = infile.available();
+  while (sz && n < bufsize - 1) {
+    buf[n] = infile.read();
+    sz--;
+    if (buf[n] == '\n') {
+      break;
+    }
+    n++;
+  }
+  buf[n] = '\0';
+  trimEOL(buf);
+  return (n > 0);
+}
+
+char *split(char *string, char delim) {
+  char *second = string;
+  while (*second && *second != delim) {
+    second++;
+  }
+  if (*second) {
+    char *tmp = second;
+    while(tmp > string && *tmp == delim || isWhitespace(*tmp)) {
+      *(tmp--) = '\0';
+    }
+    do {
+      *(second++) = '\0';
+    } while (*second && isWhitespace(*second));
+  }
+  return second;
+}
+
+boolean readConfig(char *filename, struct confValues_s *confValues, int nConfValues) {
+  boolean success = false;
+  File infile;
+  if ((infile = SD.open(filename)) != 0) {
+    for (int i=0; i<nConfValues; i++) {
+      if ((*(confValues[i].valuep)) != NULL) {
+        free(*(confValues[i].valuep));
+        *(confValues[i].valuep) = NULL;
+      }
+    }
+    while (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
+      char *value = split(tmpbuf, '=');
+      if (value) {
+        for (int i=0; i<nConfValues; i++) {
+          if (!strcasecmp(confValues[i].name, tmpbuf)) {
+            *(confValues[i].valuep) = strdup(value);
+          }
+        }
+      }
+    }
+    infile.close();
+  }
+  return success;
+}
+#pragma endregion "Config file code"
+
 #pragma region "WiFi code"
 
 #ifdef DOWIFI
@@ -446,37 +495,19 @@ char *ssid = NULL;
 char *passphrase = NULL;
 char *hostname = NULL;
 
-boolean readWiFiConfig(char *filename) {
-  boolean success = false;
-  File infile;
-  if ((infile = SD.open(filename)) != 0) {
-    if (ssid) {
-      free(ssid);
-      ssid = NULL;
-    }
-    if (passphrase) {
-      free(passphrase);
-      passphrase = NULL;
-    }
-    if (hostname) {
-      free(hostname);
-      hostname = NULL;
-    }
-    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
-      ssid = strdup(tmpbuf);
-    }
-    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
-      passphrase = strdup(tmpbuf);
-    }
-    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
-      hostname = strdup(tmpbuf);
-    }
-    if (ssid && passphrase && hostname) {
-      success = true;
-    }
-    infile.close();
+struct confValues_s wiFiConf[] = {
+  {"ssid", &ssid},
+  {"passphrase", &passphrase},
+  {"hostname", &hostname}
+};
+
+const int nWiFiConf = 3;
+
+void checkWifi() {
+  readConfig("wifi.cnf", wiFiConf, nWiFiConf);
+  if (ssid && passphrase) {
+    connectWiFi();
   }
-  return success;
 }
 
 boolean expect(char *expected1, char *expected2, char *failString, int timeout) {
@@ -530,6 +561,9 @@ boolean connectWiFi() {
   boolean retval = false;
   boolean ok = false;
   ESPSERIAL.begin(ESPBAUD);
+  if (!ssid || !passphrase) {
+    return false;
+  }
 
   if (!executeCommand("AT+CWSTATE?", ssid, NULL, NULL, 2, 2, 2)) {
 #ifdef DEBUG
@@ -594,15 +628,17 @@ boolean connectWiFi() {
       Serial.println("DHCP config set");
     }
 #endif
-    sprintf(tmpbuf, "AT+CWHOSTNAME=\"%s\"", hostname);
-    if (!executeCommand(tmpbuf, "OK\r\n", NULL, NULL, 5, 5, 2)) {
-      return false;
-    }
+    if (hostname) {
+      sprintf(tmpbuf, "AT+CWHOSTNAME=\"%s\"", hostname);
+      if (!executeCommand(tmpbuf, "OK\r\n", NULL, NULL, 5, 5, 2)) {
+        return false;
+      }
 #ifdef ESPDEBUG
-    else {
-      Serial.println("Hostname set");
-    }
+      else {
+        Serial.println("Hostname set");
+      }
 #endif
+    }
     sprintf(tmpbuf, "AT+CWJAP=\"%s\",\"%s\"", ssid, passphrase);
     if (!executeCommand(tmpbuf, "OK\r\n", NULL, NULL, 10, 10, 5)) {
       return false;
