@@ -1,16 +1,5 @@
 /*
- * Simulate a mouse moving randomly one pixel every once in a while.
- * Also read texts from three text files on the SD card (BUTTON0.TXT, BUTTON1.TXT, BUTTON2.TXT)
- * and send the texts as keyboard input when the corresponding button is pressed. Or move the mouse
- * in a circle. Or whatever. Just check loop() to see what it does.
- *
- * NOTE: The text sent will be encoded into HID bytes according to an American keyboard layout, so some
- * translation may be needed. Look at the keyboard layouts for a hint of what needs to be translated. It's
- * mostly positional, so whatever's on an American keyboard in the same position will be the correct
- * character.
- *
- * One example is that if you are using a Swedish keyboard layout and want to send a question mark,
- * use underscore.
+ * Hexadecimal keypad code
  *
  */
 
@@ -22,9 +11,13 @@
 #include "max7219.h"
 
 #define DEBUG
+#undef ESPDEBUG
 #undef SCANDEBUG
-#define DOWRITE
 #define TRISTATESTROBE
+#define DOWIFI
+#ifdef ESPDEBUG
+#define DEBUG
+#endif
 
 // Select the timers you're using, here ITimer4
 #define USE_TIMER_1     false
@@ -40,7 +33,7 @@
 
 // Talk to the ESP-01's AT firmware on this port
 #define ESPSERIAL Serial1
-#define ESPBAUD 115200
+#define ESPBAUD 9600
 
 boolean cardInserted = false;
 
@@ -63,91 +56,32 @@ const unsigned int keycode[NROWS][NCOLS] = {
   {-1, HEXDIGIT | '0', -1, SETUP | KEY_LEFT, -1}
 };
 
-#define BUFLEN 150
-#define TXTLEN 32
+#define BUFLEN 64
 
 MAX7219 max7219;
-
-char xlate_string[TXTLEN];
 
 char tmpbuf[BUFLEN];
 
 void trimEOL(char *str) {
-  while (strlen(str) > 0 && str[strlen(str) - 1] == '\n') {
+  while (strlen(str) > 0 && (str[strlen(str) - 1] == '\n' || str[strlen(str) - 1] == '\r')) {
     str[strlen(str) - 1] = '\0';
   }
 }
 
-#ifdef DOWRITE
-int writeSDFile(char *filename, char *buf) {
-  File outfile;
-  if (SD.exists(filename)) {
-    SD.remove(filename);
-  }
-  if ((outfile = SD.open(filename, FILE_WRITE)) != 0) {
-    int res = outfile.print(buf);
-#ifdef DEBUG
-    Serial.println(String("Wrote ") + buf + " to " + filename + ", " + res + " bytes");
-#endif
-    outfile.close();
-  } else {
-#ifdef DEBUG
-    Serial.println(String("Failed to open ") + filename + " for writing");
-#endif
-    return 0;
-  }
-  return 1;
-}
-#endif
-
-int readSDFile(char *filename, char *buf, int bufsize) {
-  File infile;
-  if ((infile = SD.open(filename)) != 0) {
-#ifdef DEBUG
-    Serial.print("Reading from ");
-    Serial.println(filename);
-#endif
-    int sz = infile.available();
-    infile.read(buf, bufsize - 1);
-    if (sz < bufsize - 1) {
-      buf[sz] = '\0';
-    } else {
-      buf[bufsize-1] = '\0';
+boolean readLine(File infile, char *buf, int bufsize) {
+  int n = 0;
+  int sz = infile.available();
+  while (sz && n < bufsize - 1) {
+    buf[n] = infile.read();
+    sz--;
+    if (buf[n] == '\n') {
+      break;
     }
-#ifdef DEBUG
-    Serial.print("Read: ");
-    Serial.println(buf);
-#endif
-//    trimEOL(buf);
-    infile.close();
-  } else {
-#ifdef DEBUG
-    Serial.print("Failed to read file: ");
-    Serial.println(filename);
-#endif
-    buf[0] = '\0';
-    return 0;
+    n++;
   }
-  return 1;
-}
-
-void doxlate(char *str, char *xlate) {
-  int i, j;
-  for (i=0; i<strlen(xlate); i+=2) {
-    for (j=0; j<strlen(str); j++) {
-      if (str[j] == xlate[i]) {
-        str[j] = xlate[i + 1];
-      }
-    }
-  }
-}
-
-void readTxt(char *filename, char *buf, int buflen, char *xlate) {
-  if (readSDFile(filename, tmpbuf, sizeof(tmpbuf))) {
-      doxlate(tmpbuf, xlate);
-      strncpy(buf, tmpbuf, buflen);
-      buf[buflen-1] = '\0';
-  }
+  buf[n] = '\0';
+  trimEOL(buf);
+  return true;
 }
 
 void setup() {
@@ -175,11 +109,11 @@ void setup() {
 
 void readFromSD() {
   if (SD.begin(CSPIN)) {
-    if (readSDFile("xlate.txt", xlate_string, sizeof(xlate_string))) {
-      xlate_string[strlen(xlate_string) & 0xFE] = '\0';
-    } else {
-      xlate_string[0] = '\0';
+#ifdef DOWIFI
+    if (readWiFiConfig("wifi.txt")) {
+      connectWiFi();
     }
+#endif
 #ifdef DEBUG
   } else {
     Serial.println("SD initialization failed");
@@ -190,67 +124,6 @@ void readFromSD() {
 void moveMouse() {
   Mouse.move(random(2) - 1, random(2) - 1);
   delay(200);
-}
-
-void moveMouseCircle() {
-  int radius=30 + random(250);
-  int del=3 + random(7);
-  static float pi = 3.14159265;
-  float angle;
-  // take control of the mouse:
-  Mouse.begin();
-  //Serial.begin(9600);
-  //while (!Serial){};
-  int x = radius;
-  int y = 0;
-  int oldx = x;
-  int oldy = y;
-  for (angle = 0; angle < 2 * pi; angle += pi/128) {
-    x = (int)round(radius * cos(angle));
-    y = (int)round(radius * sin(angle));
-    //Serial.print(x - oldx);
-    //Serial.print(";");
-    //Serial.println(y - oldy);
-    Mouse.move(x - oldx, y - oldy, 0);
-    delay(del);
-    oldx = x;
-    oldy = y;
-  }
-  Mouse.end();
-}
-
-void moveMouseSpiral() {
-  float radius = 30 + random(250);
-  float rdelta = (float)random(250)/(float)2500;
-  int del=3 + random(7);
-  static float pi = 3.14159265;
-  float angle;
-  // take control of the mouse:
-  Mouse.begin();
-  //Serial.begin(9600);
-  //while (!Serial){};
-  int x = radius;
-  int y = 0;
-  int oldx = x;
-  int oldy = y;
-  while (radius > 0.1) {
-    for (angle = 0; angle < 2 * pi; angle += pi/128) {
-      x = (int)round(radius * cos(angle));
-      y = (int)round(radius * sin(angle));
-      //Serial.print(x - oldx);
-      //Serial.print(";");
-      //Serial.println(y - oldy);
-      Mouse.move(x - oldx, y - oldy, 0);
-      // delay(del);
-      oldx = x;
-      oldy = y;
-      radius -= rdelta;
-      if (radius <= 0.1) {
-        break;
-      }
-    }
-  }
-  Mouse.end();
 }
 
 void loop() {
@@ -413,32 +286,33 @@ void handleSetupKey(int keycode) {
   switch(keycode) {
     case KEY_PROPS:
 #ifdef DEBUG
-      Serial.println(String("Enter setup"));
+      Serial.println("Enter setup");
 #endif
     break;
   case KEY_UP:
 #ifdef DEBUG
-      Serial.println(String("Menu Up"));
+      Serial.println("Menu Up");
 #endif
     break;
   case KEY_DOWN:
 #ifdef DEBUG
-    Serial.println(String("Menu Down"));
+    Serial.println("Menu Down");
 #endif
     break;
   case KEY_LEFT:
 #ifdef DEBUG
-    Serial.println(String("Menu exit"));
+    Serial.println("Menu exit");
 #endif
     break;
   case KEY_ENTER:
 #ifdef DEBUG
-    Serial.println(String("Menu confirm"));
+    Serial.println("Menu confirm");
 #endif
     break;
   default:
 #ifdef DEBUG
-    Serial.println(String("Unknown setup key pressed: ") + keycode);
+    Serial.print("Unknown setup key pressed: ");
+    Serial.println(keycode);
 #endif
     break;
   }
@@ -564,3 +438,196 @@ void resetKeys() {
 }
 
 #pragma endregion "HID code"
+
+#pragma region "WiFi code"
+
+#ifdef DOWIFI
+char *ssid = NULL;
+char *passphrase = NULL;
+char *hostname = NULL;
+
+boolean readWiFiConfig(char *filename) {
+  boolean success = false;
+  File infile;
+  if ((infile = SD.open(filename)) != 0) {
+    if (ssid) {
+      free(ssid);
+      ssid = NULL;
+    }
+    if (passphrase) {
+      free(passphrase);
+      passphrase = NULL;
+    }
+    if (hostname) {
+      free(hostname);
+      hostname = NULL;
+    }
+    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
+      ssid = strdup(tmpbuf);
+    }
+    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
+      passphrase = strdup(tmpbuf);
+    }
+    if (readLine(infile, tmpbuf, sizeof(tmpbuf))) {
+      hostname = strdup(tmpbuf);
+    }
+    if (ssid && passphrase && hostname) {
+      success = true;
+    }
+    infile.close();
+  }
+  return success;
+}
+
+boolean expect(char *expected1, char *expected2, char *failString, int timeout) {
+  int resppos = 0;
+  memset(tmpbuf, 0, sizeof(tmpbuf));
+  long startmillis=millis();
+  while (1) {
+    if (millis() - startmillis > timeout * 1000) {
+      break;
+    }
+    while (ESPSERIAL.available() > 0) {
+      char c = ESPSERIAL.read();
+      if (resppos == sizeof(tmpbuf) - 1) {
+        memmove(tmpbuf, tmpbuf + 1, sizeof(tmpbuf) - 1);
+        resppos--;
+      }
+      tmpbuf[resppos++] = c;
+#ifdef ESPDEBUG
+      Serial.print(c);
+#endif
+      if (strstr(tmpbuf, expected1) != NULL || (expected2 != NULL && strstr(tmpbuf, expected2) != NULL)) {
+        return true;
+      } else if (failString != NULL && strstr(tmpbuf, failString) != NULL) {
+#ifdef ESPDEBUG
+        Serial.println("Received fail response");
+#endif
+        return false;
+      }
+    }
+  }
+#ifdef ESPDEBUG
+  Serial.println("Timeout");
+#endif
+  return false;
+}
+
+boolean executeCommand(char *command, char *success, char *success2, char *failure, int timeout, int retries, int retryDelay) {
+  for (int i = 0; i < retries; i++) {
+    ESPSERIAL.print(command);
+    ESPSERIAL.print("\r\n");
+    if (expect(success, success2, failure, timeout)) {
+      return true;
+    } else {
+      delay(retryDelay * 1000);
+    }
+  }
+  return false;
+}
+
+boolean connectWiFi() {
+  boolean retval = false;
+  boolean ok = false;
+  ESPSERIAL.begin(ESPBAUD);
+
+  if (!executeCommand("AT+CWSTATE?", ssid, NULL, NULL, 2, 2, 2)) {
+#ifdef DEBUG
+    Serial.println("Not connected. Reconnecting.");
+#endif
+    expect("OK\r\n", NULL, NULL, 3);
+    if (!executeCommand("AT+RST", "OK\r\n", NULL, NULL, 3, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      expect("ready", "GOT IP\r\n", NULL, 9);
+      Serial.println("Module Reset");
+    }
+#endif
+    if (!executeCommand("AT+CWMODE=1", "OK\r\n", NULL, NULL, 3, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("Mode set");
+    }
+#endif
+    if (!executeCommand("AT+CWLAP", ssid, NULL, NULL, 10, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("SSID found");
+    }
+#endif
+    expect("OK", NULL, NULL, 2);
+    if (!executeCommand("AT+SYSSTORE=1", "OK\r\n", NULL, NULL, 4, 1, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("SYSSTORE set");
+    }
+#endif
+    if (!executeCommand("AT+CWAUTOCONN=1", "OK\r\n", NULL, NULL, 3, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("AUTOCONN set");
+    }
+#endif
+    if (!executeCommand("AT+CWRECONNCFG=2,0", "OK\r\n", NULL, NULL, 3, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("RECONNCFG set");
+    }
+#endif
+    if (!executeCommand("AT+CWDHCP=1,3", "OK\r\n", NULL, NULL, 3, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("DHCP config set");
+    }
+#endif
+    sprintf(tmpbuf, "AT+CWHOSTNAME=\"%s\"", hostname);
+    if (!executeCommand(tmpbuf, "OK\r\n", NULL, NULL, 5, 5, 2)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("Hostname set");
+    }
+#endif
+    sprintf(tmpbuf, "AT+CWJAP=\"%s\",\"%s\"", ssid, passphrase);
+    if (!executeCommand(tmpbuf, "OK\r\n", NULL, NULL, 10, 10, 5)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("Connected");
+    }
+#endif
+    if (!executeCommand("AT+CIPSNTPCFG=1,0,\"ntp.se\"", "OK\r\n", NULL, NULL, 10, 1, 5)) {
+      return false;
+    }
+#ifdef ESPDEBUG
+    else {
+      Serial.println("SNTP configured");
+    }
+#endif
+#ifdef DEBUG
+    Serial.println("Connected to WiFi");
+#endif
+  } else {
+#ifdef DEBUG
+    Serial.println("WiFi already connected");
+#endif
+  }
+}
+#endif
+#pragma endregion "WiFi code"
