@@ -11,8 +11,8 @@
 #include "max7219.h"
 
 #define DEBUG
-#undef ESPDEBUG
-#undef SCANDEBUG
+#define ESPDEBUG
+#define SCANDEBUG
 #define TRISTATESTROBE
 #define DOWIFI
 #ifdef ESPDEBUG
