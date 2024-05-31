@@ -1,5 +1,7 @@
 # HexKeyboard
 
+A 25 x 25 keypad with a LED display and many features.
+
 ![HexKeyboard_1](Photos/HexKeyboard_1.jpg)
 ![HexKeyboard_1](Photos/HexKeyboard_2.jpg)
 
