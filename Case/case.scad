@@ -1,4 +1,4 @@
-$fn=128;
+$fn=16;
 
 include <dimensions.scad>
 
@@ -25,7 +25,8 @@ union() {
     difference() {
         union() {
             // Top plate
-            cube([caseWidth, caseDepth, caseWallThickness], center = true);
+            translate([caseOffsetX, caseOffsetY])
+                cube([caseWidth, caseDepth, caseWallThickness], center = true);
 
                 // 4 x top screw standoff
             translate([pcbAbsBLHoleX - pcbCX, - (pcbAbsBLHoleY - pcbCY), 0])
@@ -56,6 +57,8 @@ union() {
             cube([caseZifHoleWidth, caseZifHoleDepth, caseWallThickness + 0.02], center = true);
     }
     
+    
+    translate([caseOffsetX, caseOffsetY])
     difference() {
         union() {
             translate([-(caseWidth / 2 - caseWallThickness / 2), 0, -(caseWallThickness / 2 + caseTopRimHeightUpper / 2 - 0.01 / 2)])
@@ -81,6 +84,7 @@ union() {
                     cube([caseSdHoleWidth, 20, caseSdHoleHeight], center=true);
             }
         };
+        // Cut off the bottom at an angle
         translate([0, 0, -(caseTopRimHeightUpper * 3 / 2 + caseTopRimOffset / 2 + caseTopRimHeightLower)])
             rotate([-caseTopRimAngle, 0, 0])
                 cube([caseWidth + 5, caseDepth + 20, caseTopRimHeightUpper * 3], center = true);

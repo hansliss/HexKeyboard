@@ -78,9 +78,14 @@ caseSwitchPlateOpeningRimHeight = 3;
 caseSwitchPlateOpeningPosX = pcbAbsKeypadCenterX - pcbCX;
 caseSwitchPlateOpeningPosy = pcbAbsKeypadCenterY - pcbCY;
 
-caseMargin = 2;
-caseWidth = pcbWidth + 2 * caseMargin + 2 * caseWallThickness;
-caseDepth = pcbDepth + 2 * caseMargin + 2 * caseWallThickness;
+caseMarginTop = 0.2;
+caseMarginBottom = 1.2;
+caseMarginLeft = 1.2;
+caseMarginRight = 1.2;
+caseWidth = pcbWidth + caseMarginLeft + caseMarginRight + 2 * caseWallThickness;
+caseDepth = pcbDepth + caseMarginTop + caseMarginBottom + 2 * caseWallThickness;
+caseOffsetY = (caseMarginTop - caseMarginBottom)/2;
+caseOffsetX = (caseMarginRight - caseMarginLeft)/2;
 
 caseTopStandoffHeight = caseSwitchPlateOpeningRimHeight + facePlateTop;
 caseTopStandoffHoleRadius = 1.25;

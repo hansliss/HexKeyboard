@@ -36,13 +36,16 @@ module screwHoleHigh() {
 
 difference() {
     union() {
-        cube([caseWidth, caseDepth / cos(caseTopRimAngle), caseWallThickness], center = true);
-        intersection() {
-            translate([0, 0, caseWallThickness - 0.01])
-                cube([caseWidth - (2 * caseWallThickness + 0.2), 5 + caseDepth - (2 * caseWallThickness + 0.2), caseWallThickness], center = true);
-            translate([0, 0, caseWallThickness / 2])
-                rotate([caseTopRimAngle, 0, 0])
-                    cube([caseWidth - (2 * caseWallThickness + 0.2), (caseDepth - (2 * caseWallThickness + 0.2)), 50], center = true);
+        translate([caseOffsetX, caseOffsetY])
+            union() {
+                cube([caseWidth, caseDepth / cos(caseTopRimAngle), caseWallThickness], center = true);
+                intersection() {
+                    translate([0, 0, caseWallThickness - 0.01])
+                        cube([caseWidth - (2 * caseWallThickness + 0.2), 5 + caseDepth - (2 * caseWallThickness + 0.2), caseWallThickness], center = true);
+                    translate([0, 0, caseWallThickness / 2])
+                        rotate([caseTopRimAngle, 0, 0])
+                            cube([caseWidth - (2 * caseWallThickness + 0.2), (caseDepth - (2 * caseWallThickness + 0.2)), 50], center = true);
+            }
         }
         // Keypad backing
         intersection() {
