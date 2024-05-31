@@ -1,6 +1,7 @@
 # HexKeyboard
 
 ![HexKeyboard_1](Photos/HexKeyboard_1.jpg)
+![HexKeyboard_1](Photos/HexKeyboard_2.jpg)
 
 The matrix rows are on pin 4, 12, 6, 7, 23
 The matrix columns are on pin 22, 21, 20, 19, 18
